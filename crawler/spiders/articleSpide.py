@@ -52,24 +52,21 @@ class articleSpide(scrapy.Spider):
 
         # author information
         author_name = response.css(self.profile["author_name"]+"::text").get() # tested
-        author_page_link = response.css(self.profile["author_page_link"]+"::attr(href)").get().strip("//") # tested
-        if self.profile["domain"] not in author_page_link:
-            author_page_link = self.add_domain_to_author_link(author_page_link)
 
         # store information in PostgreSQL articles Table
         self.database.insert_article(self.id, article_title, article_content,
-                                             publisher_name, author_name, author_page_link)
+                                             publisher_name, author_name)
 
+        ## TODO: CITIATION MODE: OFF
         # if citations is required to check, store citation information
-        citations = self.get_citations(raw_article_content)
-        self.database.insert_citation(self.id, clean_paragraphs, citations)
+        # citations = self.get_citations(raw_article_content)
+        # self.database.insert_citation(self.id, clean_paragraphs, citations)
 
 
 
     def get_clean_article_contents(self, article_content_html):
         '''
         extract all article content from HTML response
-        TODO: extract citations from article contents
 
         :param article_content_html: HTML response of article contents
         :return: pure article content without any html tags
@@ -77,7 +74,11 @@ class articleSpide(scrapy.Spider):
         article_paragraphs = list()
 
         for paragraph in article_content_html:
+            # remove html tags
             clean_paraggraph = re.sub(r'<.*?>', '', paragraph).strip()
+            # remove &nbsp
+            clean_paraggraph = clean_paraggraph.replace(u'\xa0', u' ')
+
             if clean_paraggraph != "":
                 article_paragraphs.append(clean_paraggraph)
 
@@ -85,21 +86,11 @@ class articleSpide(scrapy.Spider):
         return article_paragraphs
 
 
-    def add_domain_to_author_link(self, URL):
-        '''
-        Add domain to one author URLsbecause they do not have complete URLs
-
-        :param author_link: one author URL that require to add domain
-        :return: one author URL that have domain
-        '''
-        test_domain = self.profile['domain'].replace("www.", "")
-        return "https://"+self.profile['domain']+"/"+URL.lstrip("/")
-
     def get_citations(self, paragraphs):
         '''
         extract all citations in article content
         :param paragraphs, a list of paragraph string from article content
-            eg. ["None", "www.baidu.com", "None", ...]
+            eg. ["None", "www.google.com", "None", ...]
             each one corresponds to each paragraph
         :return:
         '''

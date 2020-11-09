@@ -1,0 +1,25 @@
+{
+   "www.greenmedinfo.com": {
+        "domain": "www.greenmedinfo.com",
+        "name": "Green Med Info",
+        "article_title": "div.field-title h1",
+        "article_content": "div.field-body p",
+        "author_name": "div.post-date-custom div b a"
+    },
+
+   "modernalternativemama.com": {
+        "domain": "modernalternativemama.com",
+        "name": "Modern Alternative Mama",
+        "article_title": "div.post-header h1",
+        "article_content": "div.post-content p",
+        "author_name": "div.author-title a"
+    },
+
+  "vaxxter.com": {
+      "domain": "vaxxter.com",
+      "name": "Vaxxter",
+      "article_title": "h1.entry-title",
+      "article_content": "div.entry-content p",
+      "author_name": "span.entry-meta-author a"
+  }
+}
