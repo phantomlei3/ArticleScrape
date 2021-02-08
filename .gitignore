@@ -23,8 +23,14 @@
 
 # Logs and databases #
 ######################
+/wikicorpus
+*.bz2
+*.mm*.index
 *.log
 *.sqlite
+*.csv
+
+
 
 # Achieve #
 ######################

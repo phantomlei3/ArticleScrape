@@ -1,6 +1,29 @@
 
 import psycopg2
 import psycopg2.extras
+import hashlib
+
+
+'''
+Reconfiguration function to fill up the missing urls in articles
+'''
+def fill_up_missing_urls():
+    conn = psycopg2.connect("host='161.35.62.103' port='5432' dbname='scrape' user='lei' password='nlp'")
+    cursor = conn.cursor()
+
+    select_command = "SELECT article_url FROM articleurls"
+    update_command = "UPDATE articles SET article_url = %s WHERE article_id = %s"
+
+    cursor.execute(select_command)
+    results = cursor.fetchall()
+
+    for result in results:
+        url = result[0]
+        article_id = str(hashlib.md5(url.encode()).hexdigest())
+        cursor.execute(update_command, [url, article_id])
+
+    conn.commit()
+
 
 class database:
     '''
@@ -15,18 +38,18 @@ class database:
         self.cursor = self.conn.cursor()
 
 
-    def insert_article(self, article_id, article_title, article_content, publisher_name, author_name):
+    def insert_article(self, article_id, article_title, article_content, publisher_name, author_name, published_time, article_url):
         '''
 
         insert one new article into articles table
 
         '''
-        insert_command = "INSERT INTO articles(ARTICLE_ID, ARTICLE_TITLE, ARTICLE_CONTENT, PUBLISHER_NAME, AUTHOR_NAME) " \
-                         "VALUES (%s, %s, %s, %s, %s)"
+        insert_command = "INSERT INTO articles(ARTICLE_ID, ARTICLE_TITLE, ARTICLE_CONTENT, PUBLISHER_NAME, AUTHOR_NAME, PUBLISHED_TIME, ARTICLE_URL) " \
+                         "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (ARTICLE_ID) DO NOTHING"
 
         # store information in PostgreSQL articles Table
         self.cursor.execute(insert_command, [article_id, article_title, article_content,
-                                             publisher_name, author_name])
+                                             publisher_name, author_name, published_time, article_url])
         self.conn.commit()
 
     def lookup_article(self, article_id):
@@ -35,11 +58,11 @@ class database:
         :param article_id, a stirng that is the primary key in articles table (md5 value)
         :return:
             if article_id exists in article table:
-            return a tuple (article_title, article_content, publisher_name, author_name)
+            return a tuple (article_title, article_content, publisher_name, author_name, published_time, article_url)
             if not existed:
             return None
         '''
-        select_command = "SELECT article_title, article_content, publisher_name, author_name FROM articles " \
+        select_command = "SELECT article_title, article_content, publisher_name, author_name, published_time, article_url FROM articles " \
                          "WHERE article_id = %s"
         self.cursor.execute(select_command, [article_id])
         result = self.cursor.fetchall()
@@ -48,97 +71,84 @@ class database:
         else:
             return None
 
-
-    def insert_author(self, author_id, author_name, author_introduction, author_article_list):
+    def get_all_articles(self):
         '''
 
-        insert one new author into authors table
+        :return: the all articles in the following format (publisher_name, article_url, article_title, article_id, article_content, author_name, published_time)
+        '''
+        select_command = "SELECT publisher_name, article_url, article_title, article_id, article_content, author_name, published_time FROM articles"
+        self.cursor.execute(select_command)
+        result = self.cursor.fetchall()
+        return result
 
+    def get_all_article_contents(self):
         '''
 
-        insert_command = "INSERT INTO authors(author_id, author_name, author_intro, author_article_list) " \
-                         "VALUES (%s, %s, %s, %s) ON CONFLICT (author_id) DO UPDATE SET author_article_list=EXCLUDED.author_article_list"
+        :return: the article content of all articles in articles in a list
+        '''
+        select_command = "SELECT article_content FROM articles"
+        self.cursor.execute(select_command)
+        result = [i[0] for i in self.cursor.fetchall()]
+        return result
 
-        self.cursor.execute(insert_command, [author_id, author_name, author_introduction, author_article_list])
+    def insert_article_url(self, article_url, website_name, website_url):
+        '''
+
+        insert one new article url into articleurls table
+            repetitive URLs will be ignored by the system when inserted
+
+        '''
+        insert_command = "INSERT INTO articleurls(article_url, website_name, website_url)" \
+                         "VALUES (%s, %s, %s) ON CONFLICT (article_url) DO NOTHING;"
+
+        # store information in PostgreSQL articles Table
+        self.cursor.execute(insert_command, [article_url, website_name, website_url])
         self.conn.commit()
 
-    def lookup_author(self, author_id):
+    def get_all_article_urls(self):
         '''
 
-        :param author_id, a stirng that is the primary key in author table (md5 value)
+        :return: all article urls in a list i.e. [www.google.com, www.gmail.com]
+        '''
+        select_command = "SELECT article_url from articleurls"
+
+        self.cursor.execute(select_command)
+        result = self.cursor.fetchall()
+
+        # clean up unnecessary tuples
+        result = [item[0] for item in result]
+
+        return result
+
+    def return_article_urls(self, website_url):
+        '''
+
+        :param website_url, the website domain URL in website profiles
         :return:
-            if author_id exists in authors table:
-            return a tuple (author_name, author_intro, author_article_list)
+            if website_url exists in articleurls table:
+            return a list of tuples (article_url)
             if not existed:
             return None
         '''
-        select_command = "SELECT author_name, author_intro, author_article_list FROM authors WHERE author_id = %s"
-        self.cursor.execute(select_command, [author_id])
+        select_command = "SELECT article_url from articleurls Where website_url = %s"
+
+        self.cursor.execute(select_command, [website_url])
         result = self.cursor.fetchall()
-        if len(result) == 1:
-            return result[0]
+        if len(result) >= 1:
+            # clean up unnecessary tuples
+            result = [item[0] for item in result]
+
+            return result
         else:
             return None
 
-
-    def insert_publisher(self, publisher_id, publisher_name, publisher_introduction, publisher_credibility_score):
+    def insert_paragraph(self, publisher_name, url, article_title, paragraph_id, paragraph_content, author_name, published_time):
         '''
 
-        insert one new publisher into publisher table
+        insert one paragraph into paragraphs table
 
         '''
-
-        insert_command = "INSERT INTO publishers(publisher_id, publisher_name, publisher_intro, publisher_reliability_score) " \
-                         "VALUES (%s, %s, %s, %s)"
-
-        self.cursor.execute(insert_command, [publisher_id, publisher_introduction, publisher_credibility_score])
+        insert_command = "INSERT INTO paragraphs(publisher_name, url, article_title, paragraph_id, paragraph_content, author_name, published_time)" \
+                         "VALUES (%s, %s, %s, %s, %s, %s, %s);" # ON CONFLICT (paragraph_id) DO NOTHING
+        self.cursor.execute(insert_command, [publisher_name, url, article_title, paragraph_id, paragraph_content, author_name, published_time])
         self.conn.commit()
-
-    def lookup_publisher(self, publisher_id):
-        '''
-
-        :param publisher_id, a string that is the primary key in publisher table (md5 value)
-        :return:
-            if publisher_id exists in publisher table:
-            return a tuple (publisher_intro, publisher_reliability_score)
-            if not existed:
-            return None
-        '''
-        select_command = "SELECT publisher_intro, publisher_reliability_score FROM publishers WHERE publisher_id = %s"
-        self.cursor.execute(select_command, [publisher_id])
-        result = self.cursor.fetchall()
-        if len(result) == 1:
-            return result[0]
-        else:
-            return None
-
-    def insert_citation(self, article_id, article_paragraphs, citations_links):
-        '''
-
-        insert one new publisher into publisher table
-
-        '''
-        insert_command = "INSERT INTO citations(article_id, article_paragraphs, citation_links) " \
-                         "VALUES (%s, %s, %s)"
-
-        self.cursor.execute(insert_command, [article_id, article_paragraphs, citations_links])
-        self.conn.commit()
-
-    def lookup_citation(self, article_id):
-        '''
-
-        :param article_id, a string that is the primary key in citations table (md5 value)
-        :return:
-            if article_id exists in citations table:
-            return a tuple (article_paragraphs, citation_links)
-            if not existed:
-            return None
-        '''
-        select_command = "SELECT article_paragraphs, citation_links FROM citations WHERE article_id = %s"
-        self.cursor.execute(select_command, [article_id])
-        result = self.cursor.fetchall()
-        if len(result) == 1:
-            return result[0]
-        else:
-            return None
-

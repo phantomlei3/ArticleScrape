@@ -7,6 +7,9 @@ from PostgreSQL.database import database
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
 
+# progressbar
+from tqdm import tqdm
+
 
 def thread_article_crawl(id, url, profile):
     '''
@@ -32,28 +35,44 @@ def output_article_to_txt(db, article_id):
         output.write("\n")
         output.write(article[1])
 
+def scrape_articles(db, urls):
+    '''
+
+    scraping articles from given URLs. ALl results store in articles Table
+    :param urls: a list of article URLs
+    '''
+
+    article_profiles = json.load(open("website_profiles/profiles.json"))
+
+    for i in tqdm(range(len(urls))):
+        url = urls[i]
+        article_id = str(hashlib.md5(url.encode()).hexdigest())
+        ### TODO: NULL value issue in the article database
+        # check if article exists in the database
+        article_info = db.lookup_article(article_id)
+        if article_info is None:
+            # get article website profile
+            url_domain = url.split("/")[2].strip()
+            if url.split("/")[2].strip() in article_profiles:
+                profile = article_profiles[url_domain]
+                # crawl article information
+                p = Process(target=thread_article_crawl, args=(article_id, url, profile))
+                p.start()
+                p.join()
+
+
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    article_profiles = json.load(open("website_profiles/profiles.json"))
-    url = "https://vaxxter.com/chilling-ingredient-in-covid19-vaccine/"
-    article_id = str(hashlib.md5(url.encode()).hexdigest())
-
-
-    # check if article exists in the database
     db = database()
+    urls = ["https://thinkingmomsrevolution.com/dear-governor-brown-i-am-a-pro-vaccine-parent-who-strongly-opposes-sb-277/"]
+    article_id = str(hashlib.md5(urls[0].encode()).hexdigest())
     article_info = db.lookup_article(article_id)
-    if article_info is None:
-        # get article website profile
-        url_domain = url.split("/")[2].strip()
-        if url.split("/")[2].strip() in article_profiles:
-            profile = article_profiles[url_domain]
-            # crawl article information
-            p = Process(target=thread_article_crawl, args=(article_id, url, profile))
-            p.start()
-            p.join()
+    print(article_info[1])
+    # scrape_articles(db, urls)
 
-    ### TODO: NULL value issue in the article database
-    output_article_to_txt(db, article_id)
+
+
+
 
